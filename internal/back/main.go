@@ -3,20 +3,23 @@ package back
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	_ "github.com/lib/pq"
 	"golang.org/x/crypto/argon2"
 )
 
-var users map[string]string = make(map[string]string)
-
+var dbConn *sql.DB
 type authReq struct {
   Login string `json:"login" validate:"required,min=1,max=20,login"`
   Password string `json:"password" validate:"required,min=6,max=20"`
@@ -39,6 +42,14 @@ const (
   hashParams string = "m=%d,t=%d,p=%d"
   hashSaltStr string = "%s"
   hashHashStr string = "%s"
+)
+
+var (
+  dbHost string = os.Getenv("DB_HOST")
+  dbPort string = os.Getenv("DB_PORT")
+  dbName string = os.Getenv("DB_NAME")
+  dbUser string = os.Getenv("DB_USER")
+  dbPass string = os.Getenv("DB_PASS")
 )
 
 var hashParts = []string{"", hashAlgorithm, hashVersion, hashParams, hashSaltStr, hashHashStr}
@@ -95,11 +106,14 @@ func verifyPassword(password, encodedHash string) (bool, error) {
 }
 
 func authenticateUser(login, password string) error {
-  encodedHash, found := users[login]
-  if !found {
+  data, err := getUserData(login)
+  if err != nil {
+    return fmt.Errorf("error getting user data: %w", err)
+  }
+  if data.login != login {
     return errors.New("login not found")
   }
-  isValid, err := verifyPassword(password, encodedHash)
+  isValid, err := verifyPassword(password, data.encodedHash)
   if err != nil {
     return fmt.Errorf("authentication failed: %w", err)
   }
@@ -110,15 +124,58 @@ func authenticateUser(login, password string) error {
 }
 
 func registerUser(login, password string) error {
-  _, found := users[login]
-  if found {
+  data, err := getUserData(login)
+  if err != nil {
+    return fmt.Errorf("error checking user data: %w", err)
+  }
+  if data.login == login {
     return errors.New("user already registered")
   }
   encodedHash, err := hashPassword(password)
   if err != nil {
     return fmt.Errorf("registration failed: %w", err)
   }
-  users[login] = encodedHash
+  if err := setUserData(newUser(login, encodedHash)); err != nil {
+    return fmt.Errorf("error setting user data: %w", err)
+  }
+  return nil
+}
+
+type UserData struct {
+  login string
+  encodedHash string
+}
+
+func newUser(login, encodedHash string) *UserData {
+  return &UserData{login: login, encodedHash: encodedHash}
+}
+
+func getUserData(login string) (*UserData, error) {
+  data := UserData{}
+  err := dbConn.QueryRow(`SELECT login, encodedHash FROM users WHERE login = $1 LIMIT 1;`, login).Scan(&data.login, &data.encodedHash)
+  if err == sql.ErrNoRows {
+    return &data, nil
+  }
+  if err != nil {
+    return nil, fmt.Errorf("failed to get user data: %w", err)
+  }
+  return &data, nil
+}
+
+func setUserData(data *UserData) error {
+  res, err := dbConn.Exec(`UPDATE users
+                           SET encodedHash = $2
+                           WHERE login = $1;`, data.login, data.encodedHash)
+  if err != nil {
+    return err
+  }
+  n, err := res.RowsAffected()
+  if err != nil {
+    return err
+  }
+  if n == 0 {
+    return errors.New("failed to update user data")
+  }
   return nil
 }
 
@@ -126,9 +183,20 @@ func init() {
   validate.RegisterValidation("login", func(fl validator.FieldLevel) bool {
     return loginValidation.MatchString(fl.Field().String())
   })
+  var err error
+  connString := fmt.Sprintf("host=%s port=%s dbname=\"%s\" user=\"%s\" password=\"%s\" sslmode=disable", dbHost, dbPort, dbName, dbUser, dbPass)
+  dbConn, err = sql.Open("postgres", connString)
+  if err != nil {
+    log.Fatal("invalid db config", err)
+  }
+  if err = dbConn.Ping(); err != nil {
+    log.Fatal("db unreachable", err)
+  }
 }
 
 func Start() int {
+  defer dbConn.Close()
+
   http.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
     var req authReq
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

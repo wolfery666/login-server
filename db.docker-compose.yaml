@@ -1,0 +1,20 @@
+services:
+  db:
+    container_name: login-server-db
+    image: postgres:16
+    ports:
+      - '${DB_PORT}:5432'
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - '${PWD}/pgdata:/var/lib/postgresql/data/pgdata'
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-h", "127.0.0.1", "-U", "${DB_USER}", "-d", "${DB_NAME}" ]
+      interval: 1s
+      timeout: 60s
+      retries: 5
+      start_period: 120s
+      start_interval: 10s
