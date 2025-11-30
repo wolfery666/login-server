@@ -15,8 +15,11 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/argon2"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 var dbConn *sql.DB
@@ -24,9 +27,18 @@ type authReq struct {
   Login string `json:"login" validate:"required,min=1,max=20,login"`
   Password string `json:"password" validate:"required,min=6,max=20"`
 }
+type logoutReq struct {
+  Token string `json:"token" validate:"required,min=36,max=36,token"`
+}
+type changePasswordReq struct {
+  Token string `json:"token" validate:"required,min=36,max=36,token"`
+  Password string `json:"password" validate:"required,min=6,max=20"`
+  NewPassword string `json:"new_password" validate:"required,min=6,max=20"`
+}
 
 var validate = validator.New()
 var loginValidation = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+var tokenValidation = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 const (
   saltLength uint32 = 16
@@ -105,7 +117,76 @@ func verifyPassword(password, encodedHash string) (bool, error) {
   return subtle.ConstantTimeCompare(hash, compHash) == 1, nil
 }
 
-func authenticateUser(login, password string) error {
+func authenticateUser(login, password string) (string, error) {
+  data, err := getUserData(login)
+  if err != nil {
+    return "", fmt.Errorf("error getting user data: %w", err)
+  }
+  if data.login != login {
+    return "", errors.New("login not found")
+  }
+  isValid, err := verifyPassword(password, data.encodedHash)
+  if err != nil {
+    return "", fmt.Errorf("authentication failed: %w", err)
+  }
+  if !isValid {
+    return "", errors.New("wrong password")
+  }
+  token := addToken(login)
+  return token, nil
+}
+
+func addToken(login string) string {
+  token := uuid.New().String()
+  _, err := dbConn.Exec(`INSERT INTO tokens
+                        (token, login, expiration)
+                        VALUES
+                        ($1, $2, CURRENT_DATE + INTERVAL '1 day');`, token, login)
+  if err != nil {
+    return ""
+  }
+  return token
+}
+
+func registerUser(login, password string) (string, error) {
+  data, err := getUserData(login)
+  if err != nil {
+    return "", fmt.Errorf("error checking user data: %w", err)
+  }
+  if data.login == login {
+    return "", errors.New("user already registered")
+  }
+  encodedHash, err := hashPassword(password)
+  if err != nil {
+    return "", fmt.Errorf("registration failed: %w", err)
+  }
+  if err := setUserData(newUser(login, encodedHash)); err != nil {
+    log.Println(err)
+    return "", fmt.Errorf("error setting user data: %w", err)
+  }
+  token := addToken(login)
+  return token, nil
+}
+
+func logoutUser(token string) error {
+  _, err := dbConn.Exec(`DELETE FROM tokens WHERE token = $1`, token)
+  if err != nil {
+    return fmt.Errorf("failed to delete token data: %w", err)
+  }
+  
+  return nil
+}
+
+func changePassword(token, password, newPassword string) error {
+  var login string
+  var err error
+  login, err = getLogin(token)
+  if err != nil {
+    return err
+  }
+  if login == "" {
+    return errors.New("login not found")
+  }
   data, err := getUserData(login)
   if err != nil {
     return fmt.Errorf("error getting user data: %w", err)
@@ -120,24 +201,15 @@ func authenticateUser(login, password string) error {
   if !isValid {
     return errors.New("wrong password")
   }
-  return nil
-}
-
-func registerUser(login, password string) error {
-  data, err := getUserData(login)
-  if err != nil {
-    return fmt.Errorf("error checking user data: %w", err)
-  }
-  if data.login == login {
-    return errors.New("user already registered")
-  }
-  encodedHash, err := hashPassword(password)
+  encodedHash, err := hashPassword(newPassword)
   if err != nil {
     return fmt.Errorf("registration failed: %w", err)
   }
-  if err := setUserData(newUser(login, encodedHash)); err != nil {
+  if err := updateUserData(newUser(login, encodedHash)); err != nil {
+    log.Println(err)
     return fmt.Errorf("error setting user data: %w", err)
   }
+
   return nil
 }
 
@@ -152,7 +224,7 @@ func newUser(login, encodedHash string) *UserData {
 
 func getUserData(login string) (*UserData, error) {
   data := UserData{}
-  err := dbConn.QueryRow(`SELECT login, encodedHash FROM users WHERE login = $1 LIMIT 1;`, login).Scan(&data.login, &data.encodedHash)
+  err := dbConn.QueryRow(`SELECT login, encoded_hash FROM users WHERE login = $1 LIMIT 1;`, login).Scan(&data.login, &data.encodedHash)
   if err == sql.ErrNoRows {
     return &data, nil
   }
@@ -163,8 +235,26 @@ func getUserData(login string) (*UserData, error) {
 }
 
 func setUserData(data *UserData) error {
+  res, err := dbConn.Exec(`INSERT INTO users
+                           (login, encoded_hash)
+                           VALUES
+                           ($1, $2);`, data.login, data.encodedHash)
+  if err != nil {
+    return err
+  }
+  n, err := res.RowsAffected()
+  if err != nil {
+    return err
+  }
+  if n == 0 {
+    return errors.New("failed to set user data")
+  }
+  return nil
+}
+
+func updateUserData(data *UserData) error {
   res, err := dbConn.Exec(`UPDATE users
-                           SET encodedHash = $2
+                           SET encoded_hash = $2
                            WHERE login = $1;`, data.login, data.encodedHash)
   if err != nil {
     return err
@@ -179,12 +269,31 @@ func setUserData(data *UserData) error {
   return nil
 }
 
+func getLogin(token string) (string, error) {
+  login := ""
+  err := dbConn.QueryRow(`SELECT login FROM tokens WHERE token = $1 AND expiration > CURRENT_DATE LIMIT 1;`, token).Scan(&login)
+  if err == sql.ErrNoRows {
+    return login, nil
+  }
+  if err != nil {
+    return "", fmt.Errorf("failed to get user login: %w", err)
+  }
+  return login, nil
+}
+
+func parseRequest(r *http.Request, req interface{}) error {
+  if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+    return err
+  }
+  if err := validate.Struct(req); err != nil {
+    return err
+  }
+  return nil
+}
+
 func init() {
-  validate.RegisterValidation("login", func(fl validator.FieldLevel) bool {
-    return loginValidation.MatchString(fl.Field().String())
-  })
   var err error
-  connString := fmt.Sprintf("host=%s port=%s dbname=\"%s\" user=\"%s\" password=\"%s\" sslmode=disable", dbHost, dbPort, dbName, dbUser, dbPass)
+  connString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s sslmode=disable", dbHost, dbPort, dbName, dbUser, dbPass)
   dbConn, err = sql.Open("postgres", connString)
   if err != nil {
     log.Fatal("invalid db config", err)
@@ -192,6 +301,12 @@ func init() {
   if err = dbConn.Ping(); err != nil {
     log.Fatal("db unreachable", err)
   }
+  validate.RegisterValidation("login", func(fl validator.FieldLevel) bool {
+    return loginValidation.MatchString(fl.Field().String())
+  })
+  validate.RegisterValidation("token", func(fl validator.FieldLevel) bool {
+    return tokenValidation.MatchString(fl.Field().String())
+  })
 }
 
 func Start() int {
@@ -199,38 +314,68 @@ func Start() int {
 
   http.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
     var req authReq
+    var err error
+    err = parseRequest(r, &req)
+    if err != nil {
+      http.Error(w, "Invalid JSON", http.StatusBadRequest)
+      return
+    }
+    var token string
+    token, err = authenticateUser(req.Login, req.Password)
+    if err != nil {
+      http.Error(w, "Login failed", http.StatusUnauthorized)
+      return
+    }
+    _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "token": token})
+  })
+  http.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
+    var req logoutReq
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       http.Error(w, "Invalid JSON", http.StatusBadRequest)
       return
     }
     if err := validate.Struct(req); err != nil {
-      http.Error(w, "Wrong JSON format", http.StatusBadRequest)
+      http.Error(w, "Invalid JSON", http.StatusBadRequest)
       return
     }
-    if err := authenticateUser(req.Login, req.Password); err != nil {
-      http.Error(w, "Login failed", http.StatusUnauthorized)
+    if err := logoutUser(req.Token); err != nil {
+      http.Error(w, "Logout failed", http.StatusInternalServerError)
       return
     }
     _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
   })
-  http.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
-
-  })
   http.HandleFunc("POST /signup", func(w http.ResponseWriter, r *http.Request) {
     var req authReq
+    var err error
+    err = parseRequest(r, &req)
+    if err != nil {
+      http.Error(w, "Invalid JSON", http.StatusBadRequest)
+      return
+    }  
+    var token string
+    token, err = registerUser(req.Login, req.Password)  
+    if err != nil {
+      http.Error(w, "Sign up failed", http.StatusBadRequest)
+      return
+    }
+    _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "token": token})    
+  })
+  http.HandleFunc("POST /change_password", func(w http.ResponseWriter, r *http.Request) {
+    var req changePasswordReq
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       http.Error(w, "Invalid JSON", http.StatusBadRequest)
       return
     }
     if err := validate.Struct(req); err != nil {
-      http.Error(w, "Wrong JSON format", http.StatusBadRequest)
-      return
-    }    
-    if err := registerUser(req.Login, req.Password); err != nil {
-      http.Error(w, "Sign up failed", http.StatusBadRequest)
+      http.Error(w, "Invalid JSON", http.StatusBadRequest)
       return
     }
-    _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})    
+    if err := changePassword(req.Token, req.Password, req.NewPassword); err != nil {
+      log.Println(err)
+      http.Error(w, "Failed to change password", http.StatusInternalServerError)
+      return
+    }
+    _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
   })
   if err := http.ListenAndServe(":3001", nil); err != nil {
     return 1

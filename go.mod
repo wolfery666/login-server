@@ -1,11 +1,16 @@
 module github.com/wolfery666/login-server
 
-go 1.23.0
+go 1.25.4
 
-toolchain go1.24.6
+ignore (
+	./pgdata
+	./tmp
+)
 
 require (
 	github.com/go-playground/validator/v10 v10.27.0
+	github.com/google/uuid v1.6.0
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	golang.org/x/crypto v0.41.0
 )
