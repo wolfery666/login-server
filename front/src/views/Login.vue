@@ -17,17 +17,14 @@
   })
 </script>
 <template>
-  <v-app>
-    <v-app-bar title="Login"></v-app-bar>
-    <v-main>
-      <v-container>
-        <v-form @submit.prevent="auth">
-          <v-text-field v-model="login" type="text" placeholder="Login" required />
-          <v-text-field v-model="password" type="password" placeholder="Password" required />
-          <v-btn type="submit">Login</v-btn>
-        </v-form>
-      </v-container>
-    </v-main>
-    <v-btn @click="$router.push('/signup')">Sign up</v-btn>
-  </v-app>
+  <v-card class="mx-auto" max-width="300" title="Login">
+    <v-form @submit.prevent="auth">
+      <v-text-field v-model="login" label="Login"></v-text-field>
+      <v-text-field v-model="password" label="Password" type="password"></v-text-field>
+      <v-btn type="submit" block>Login</v-btn>
+    </v-form>
+    <v-card-text class="text-center">
+      <a class="text-blue text-decoration-none" href="/signup">Sign up <v-icon icon="mdi-chevron-right"></v-icon></a>
+    </v-card-text>
+  </v-card>
 </template>

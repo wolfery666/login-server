@@ -17,12 +17,11 @@
   })
 </script>
 <template>
-  <div>
-    <h2>Signup</h2>
+  <v-card class="mx-auto" max-width="300" title="Sign up">
     <v-form @submit.prevent="signup">
-      <v-text-field v-model="login" type="text" placeholder="Login" required />
-      <v-text-field v-model="password" type="password" placeholder="Password" required />
-      <v-btn type="submit">Signup</v-btn>
+      <v-text-field v-model="login" label="Login"></v-text-field>
+      <v-text-field v-model="password" label="Password" type="password"></v-text-field>
+      <v-btn type="submit" block>Sign up</v-btn>
     </v-form>
-  </div>
+  </v-card>
 </template>
