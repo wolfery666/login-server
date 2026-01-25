@@ -3,12 +3,12 @@
   import { apiFetch } from '@/api'
 
   export default defineComponent({
-    data() { return { oldPassword: '', newPassword: '' } },
+    data() { return { password: '', newPassword: '' } },
     methods: {
       async changePass() {
         const res = await apiFetch('/change_password', {
           method: 'POST',
-          body: { password: this.oldPassword, new_password: this.newPassword }
+          body: { password: this.password, new_password: this.newPassword }
         })
         if (res.ok) this.$router.push('/')
       }
@@ -16,12 +16,12 @@
   })
 </script>
 <template>
-  <div class="form">
+  <div>
     <h2>Change Password</h2>
-    <form @submit.prevent="changePass">
-      <input v-model="oldPassword" type="password" placeholder="Old Password" required />
-      <input v-model="newPassword" type="password" placeholder="New Password" required />
-      <button type="submit">Change</button>
-    </form>
+    <v-form @submit.prevent="changePass">
+      <v-text-field v-model="password" type="password" placeholder="Old Password" required />
+      <v-text-field v-model="newPassword" type="password" placeholder="New Password" required />
+      <v-btn type="submit">Change</v-btn>
+    </v-form>
   </div>
 </template>

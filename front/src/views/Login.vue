@@ -8,7 +8,7 @@
       async auth() {
         const res = await apiFetch('/login', {
           method: 'POST',
-          body: { email: this.login, password: this.password }
+          body: { login: this.login, password: this.password }
           })
         if (res.ok) this.$router.push('/')
         else alert('Login failed')
@@ -17,13 +17,17 @@
   })
 </script>
 <template>
-  <div class="form">
-    <h2>Login</h2>
-    <form @submit.prevent="auth">
-      <input v-model="login" type="text" placeholder="Login" required />
-      <input v-model="password" type="password" placeholder="Password" required />
-      <button type="submit">Login</button>
-    </form>
-    <button @click="$router.push('/signup')">Sign up</button>
-  </div>
+  <v-app>
+    <v-app-bar title="Login"></v-app-bar>
+    <v-main>
+      <v-container>
+        <v-form @submit.prevent="auth">
+          <v-text-field v-model="login" type="text" placeholder="Login" required />
+          <v-text-field v-model="password" type="password" placeholder="Password" required />
+          <v-btn type="submit">Login</v-btn>
+        </v-form>
+      </v-container>
+    </v-main>
+    <v-btn @click="$router.push('/signup')">Sign up</v-btn>
+  </v-app>
 </template>

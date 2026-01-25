@@ -17,12 +17,12 @@
   })
 </script>
 <template>
-  <div class="form">
+  <div>
     <h2>Signup</h2>
-    <form @submit.prevent="signup">
-      <input v-model="login" type="text" placeholder="Login" required />
-      <input v-model="password" type="password" placeholder="Password" required />
-      <button type="submit">Signup</button>
-    </form>
+    <v-form @submit.prevent="signup">
+      <v-text-field v-model="login" type="text" placeholder="Login" required />
+      <v-text-field v-model="password" type="password" placeholder="Password" required />
+      <v-btn type="submit">Signup</v-btn>
+    </v-form>
   </div>
 </template>
