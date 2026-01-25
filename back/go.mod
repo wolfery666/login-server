@@ -1,4 +1,4 @@
-module github.com/wolfery666/login-server
+module github.com/wolfery666/login-server/back
 
 go 1.25.4
 

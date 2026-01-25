@@ -2,6 +2,7 @@
 ifneq (,$(wildcard .env))
     include .env
     # Only export specific variables that need to be in the environment
+		export PROJECT_NAME
     export DB_HOST
 		export DB_PORT
 		export DB_NAME
@@ -14,6 +15,8 @@ endif
 #  Project Configuration
 # =============================================================================
 # Project Settings
+PROJECT_NAME ?= myapp
+
 DATABASE_URL = "postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable"
 
 GIT_PROJECT ?= $(shell git rev-parse --show-toplevel 2>/dev/null || echo "unknown")
@@ -21,6 +24,7 @@ GIT_PROJECT ?= $(shell git rev-parse --show-toplevel 2>/dev/null || echo "unknow
 # Directories
 ROOT_DIR ?= $(shell pwd)
 MIGRATIONS_DIR ?= $(ROOT_DIR)/migrations
+PROJECT_DIR ?= $(ROOT_DIR)/cmd/$(PROJECT_NAME)
 
 # Utils
 GOOSE = "github.com/pressly/goose/v3/cmd/goose@latest"
@@ -49,6 +53,14 @@ DEBUG := @printf "$(MAGENTA)🔍 %s$(RESET)"
 ROCKET := @printf "$(GREEN)🚀 %s$(RESET)"
 PACKAGE := @printf "$(CYAN)📦 %s$(RESET)"
 TRASH := @printf "$(YELLOW)🗑️  %s$(RESET)"
+
+# =============================================================================
+# 🔄 Development Workflow
+# =============================================================================
+.PHONY: run
+run: ## Run application
+	$(ROCKET) "Running app..."
+	go run $(PROJECT_DIR)
 
 # =============================================================================
 #  Database Operations
