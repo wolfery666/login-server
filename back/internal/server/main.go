@@ -304,6 +304,7 @@ func authHandler(handler httpHandler) httpHandler {
       ErrorLog.Println(logPrefix, "failed to get login: ", err)
       switch {
       case errors.Is(err, errLoginNotFound):
+        deleteTokenCookie(w, token)
         http.Error(w, "", http.StatusUnauthorized)
       default:
         http.Error(w, "", http.StatusInternalServerError)
@@ -321,6 +322,11 @@ func authHandler(handler httpHandler) httpHandler {
 
 func setTokenCookie(w http.ResponseWriter, token *Token) {
   cookie := http.Cookie{Name: "token", Value: token.value, Path: "/", Expires: token.expires, HttpOnly: true}
+  http.SetCookie(w, &cookie)
+}
+
+func deleteTokenCookie(w http.ResponseWriter, token string) {
+  cookie := http.Cookie{Name: "token", Value: token, Path: "/", MaxAge: -1, HttpOnly: true}
   http.SetCookie(w, &cookie)
 }
 
@@ -388,6 +394,7 @@ func logout(w http.ResponseWriter, r *http.Request) {
     http.Error(w, "", http.StatusInternalServerError)
     return
   }
+  deleteTokenCookie(w, token)
 }
 
 func changePassword(w http.ResponseWriter, r *http.Request) {
