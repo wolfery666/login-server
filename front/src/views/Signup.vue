@@ -1,6 +1,7 @@
 <script lang="ts">
   import { defineComponent } from 'vue'
   import { apiFetch } from '@/api'
+  import authState from '@/state/auth'
 
   export default defineComponent({
     data() { return { login: '', password: '' } },
@@ -10,8 +11,10 @@
           method: 'POST',
           body: { login: this.login, password: this.password }
           })
-        if (res.ok) this.$router.push('/')
-        else alert('Signup failed')
+        if (res.ok) {
+          this.$router.push('/')
+          authState.loggedIn = true
+        }
       }
     }
   })
