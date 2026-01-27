@@ -1,4 +1,5 @@
 import router from '@/router'
+import authState from '@/state/auth'
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: RequestInit['body'] | object }
 
@@ -22,6 +23,7 @@ export const apiFetch = async (url: string, options: RequestOptions = {}): Promi
 
   if (res.status === 401) {
     router.push('/login')
+    authState.loggedIn = false
     throw new Error('unathorized')
   }
   return res

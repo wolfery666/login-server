@@ -17,11 +17,12 @@
 </script>
 <template>
   <div>
-    <h2>Change Password</h2>
-    <v-form @submit.prevent="changePass">
-      <v-text-field v-model="password" type="password" placeholder="Old Password" required />
-      <v-text-field v-model="newPassword" type="password" placeholder="New Password" required />
-      <v-btn type="submit">Change</v-btn>
-    </v-form>
+    <v-card class="mx-auto" max-width="300" title="Change Password">
+      <v-form @submit.prevent="changePass">
+        <v-text-field v-model="password" type="password" placeholder="Old Password" required />
+        <v-text-field v-model="newPassword" type="password" placeholder="New Password" required />
+        <v-btn type="submit" block>Change</v-btn>
+      </v-form>
+    </v-card>
   </div>
 </template>
