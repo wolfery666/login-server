@@ -46,7 +46,7 @@ const loginKey ctxKey = "login"
 const tokenKey ctxKey = "token"
 
 var validate = validator.New()
-var loginValidation = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+var loginValidation = regexp.MustCompile(`^[A-Za-z][_A-Za-z0-9]*$`)
 var tokenValidation = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 var tokenValidationTag = "min=36,max=36,token"
 
