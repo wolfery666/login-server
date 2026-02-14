@@ -76,7 +76,8 @@
         :type="passwordVisible? 'text' : 'password'"
         :append-inner-icon="passwordVisible? 'mdi-eye-off' : 'mdi-eye'"
         @click:append-inner="passwordVisible = !passwordVisible"
-        @blur="setPasswordEdit(0)">
+        @blur="setPasswordEdit(0)"
+        :validate-on="passwordEdit[0]? 'input' : 'blur'">
       </v-text-field>
       <v-text-field
         ref="confirmPasswordRef"
