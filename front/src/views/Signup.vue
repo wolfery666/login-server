@@ -3,6 +3,7 @@
   import { useRouter } from 'vue-router'
   import { apiFetch } from '@/api'
   import authState from '@/state/auth'
+  import { LOGIN_MAX_LENGTH, LOGIN_RULES, PASSWORD_MAX_LENGTH, PASSWORD_RULES } from '@/constants'
 
   const login = ref('')
   const password: Ref<string[]> = ref(Array(2).fill(''))
@@ -11,16 +12,8 @@
   const passwordVisible = ref(false)
   const confirmPasswordRef: Ref = ref(null)
 
-  const loginRules = [
-    (v: string) => !!v || 'Login is required',
-    (v: string) => v.length <= 20 || 'Max 20 characters',
-  ]
-  const passwordRules = [
-    (v: string) => !!v || 'Password is required',
-    (v: string) => v.length <= 20 || 'Max 20 characters',
-  ]
   const confirmPasswordRules = computed(() => [
-    (v: string) => !passwordsMismatch.value || 'Passwords do not match',
+    () => !passwordsMismatch.value || 'Passwords do not match',
   ])
 
   const passwordsMismatch = computed(() => {
@@ -31,9 +24,12 @@
     return isFormValid.value !== true
   })
 
-  watch([password, passwordEdit], () => {
-    const silentValidation = passwordEdit.value.some(v=>!v)
-    confirmPasswordRef.value?.validate(silentValidation)
+  const silentValidation = computed(() => {
+    return passwordEdit.value.some(v=>!v)
+  })
+
+  watch([password, silentValidation], () => {
+    confirmPasswordRef.value?.validate(silentValidation.value)
   }, {deep: true})
 
   watch(submitDisabled, () => {
@@ -52,7 +48,6 @@
   }
 
   async function signup() {
-    setPasswordEdit()
     if (submitDisabled.value) return
     const res = await apiFetch('/signup', {
       method: 'POST',
@@ -69,16 +64,15 @@
     <v-form v-model="isFormValid" @submit.prevent="signup" autocomplete="off">
       <v-text-field
         v-model="login"
-        maxlength="20"
+        :maxlength="LOGIN_MAX_LENGTH"
         label="Login"
-        :rules="loginRules"
-        required>
+        :rules="LOGIN_RULES">
       </v-text-field>
       <v-text-field
         v-model="password[0]"
-        maxlength="20"
-        :label="'Password'"
-        :rules="passwordRules"
+        :maxlength="PASSWORD_MAX_LENGTH"
+        label="Password"
+        :rules="PASSWORD_RULES"
         :type="passwordVisible? 'text' : 'password'"
         :append-inner-icon="passwordVisible? 'mdi-eye-off' : 'mdi-eye'"
         @click:append-inner="passwordVisible = !passwordVisible"
@@ -87,8 +81,8 @@
       <v-text-field
         ref="confirmPasswordRef"
         v-model="password[1]"
-        maxlength="20"
-        :label="'Confirm password'"
+        :maxlength="PASSWORD_MAX_LENGTH"
+        label="Confirm password"
         :rules="confirmPasswordRules"
         :type="passwordVisible? 'text' : 'password'"
         @blur="setPasswordEdit(1)"

@@ -17,9 +17,8 @@ const routes = [
 const router = createRouter({ history: createWebHistory(), routes })
 
 router.beforeEach(async (to, from) => {
-  if (to.path !== '/login' && to.path !== '/signup') {
-    await apiFetch('/')
-  }
+  const redirect = to.path !== '/login' && to.path !== '/signup'
+  await apiFetch('/', {}, redirect)
 })
 
 export default router
