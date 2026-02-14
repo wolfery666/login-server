@@ -3,7 +3,7 @@ import authState from '@/state/auth'
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: RequestInit['body'] | object }
 
-export const apiFetch = async (url: string, options: RequestOptions = {}, redirect: boolean = true): Promise<Response> => {
+export const apiFetch = async (url: string, options: RequestOptions = {}): Promise<Response> => {
   const headers = new Headers(options.headers)
   const credentials = options.credentials || 'include'
   let body = options.body
@@ -23,10 +23,7 @@ export const apiFetch = async (url: string, options: RequestOptions = {}, redire
 
   if (res.status === 401) {
     authState.loggedIn = false
-    if (redirect) {
-      router.push('/login')
-      throw new Error('unathorized')
-    }
   }
+  
   return res
 }

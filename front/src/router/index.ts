@@ -5,6 +5,7 @@ import Signup from '@/views/Signup.vue'
 import Logout from '@/views/Logout.vue'
 import ChangePassword from '@/views/ChangePassword.vue'
 import { apiFetch } from '@/api'
+import authState from '@/state/auth'
 
 const routes = [
   { path: '/', component: Home },
@@ -17,8 +18,10 @@ const routes = [
 const router = createRouter({ history: createWebHistory(), routes })
 
 router.beforeEach(async (to, from) => {
-  const redirect = to.path !== '/login' && to.path !== '/signup'
-  await apiFetch('/', {}, redirect)
+  await apiFetch('/')
+  if (!authState.loggedIn && to.path !== '/login' && to.path != 'signup') {
+    return { path: '/login' }
+  }
 })
 
 export default router
